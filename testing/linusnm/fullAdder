@@ -1,0 +1,15 @@
+module fullAdder (A, B, Cin, Cout, S)
+
+input logic A, B, Cin;
+output logic Cout, S;
+
+logic AxorB, AandB, AxorBandCin;
+
+// logic for full adder
+xor(AxorB, A, B);
+xor(S, AxorB, Cin);
+and(AandB, A, B);
+and(AxorBandCin, AxorB, Cin);
+or(Cout, AandB, AxorBandCin);
+
+endmodule
