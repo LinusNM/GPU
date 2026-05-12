@@ -29,7 +29,6 @@ module decoder (
                 4'b1111: out = 16'b1000_0000_0000_0000;
                 default: out = 16'b0; // default case to handle invalid inputs
             endcase
-            out[in] = 1'b1; // one-hot enabled output
         end
     end
 endmodule

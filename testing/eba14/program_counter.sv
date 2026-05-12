@@ -8,7 +8,7 @@ module program_counter (
     input logic             pause,
     input logic             reset,
 
-    // If the ALU is passed in
+    // Branch signals from the control unit
     input logic             branch_taken,
     input logic [31:0]      branch_target,
 
