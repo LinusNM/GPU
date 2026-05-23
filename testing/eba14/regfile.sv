@@ -1,43 +1,85 @@
-// This module implements a register file with 16 entries, each 32 bits wide.
-// It provides a single write port and two read ports.
-// Writing is synchronous to the rising edge of 'clk' when 'write_enable' is active.
-// Reading is combinational, which is used to provide the data at 'read_address'.
-// The 'reset' signal is used to clear all registers to a value of 0.
-module regfile (
-    input  logic        clk,            // System clock
-    input  logic        reset,          // Synchronous (active-high) reset
-    input  logic [3:0]  write_address,  // 4-bit address to select the write register
-    input  logic [31:0] write_data,     // 32-bit data to be written
-    input  logic        write_enable,   // Write enable control signal
-    
-    input  logic [3:0]  read_address_1, // Port 1: 4-bit address to read
-    output logic [31:0] read_data_1,    // Port 1: 32-bit data output
-    
-    input  logic [3:0]  read_address_2, // Port 2: 4-bit address to read
-    output logic [31:0] read_data_2     // Port 2: 32-bit data output
+// Register file with 16 entries, each 32 bits wide.
+// Structurally built using decoder (write port) and mux16to1 (read ports)
+// as submodules to reflect actual gate-level hardware.
+//
+// Write path: write_address -> decoder -> one-hot write enable per register -> DFFs
+// Read path:  all 32-bit registers -> 32x mux16to1 (one per bit) -> read_data
+module RegFile (
+    input  logic        clk,
+    input  logic        reset,
+    input  logic [3:0]  write_address,
+    input  logic [31:0] write_data,
+    input  logic        write_enable,
+
+    input  logic [3:0]  read_address_1,
+    output logic [31:0] read_data_1,
+
+    input  logic [3:0]  read_address_2,
+    output logic [31:0] read_data_2
 );
 
-    // Internal storage array: 16 registers (unpacked), each 32 bits wide (packed).
-    logic [31:0] register_storage [0:15];
+    // One-hot write enable: only the selected register's bit is high
+    logic [15:0] write_select;
 
-    // WRITE Logic (Sequential)
-    // This logic handles updating the register values.
+    decoder write_decoder (
+        .in    (write_address),
+        .enable(write_enable),
+        .out   (write_select)
+    );
+
+    // 16 registers, each 32 bits wide
+    logic [31:0] registers [0:15];
+
     always_ff @(posedge clk) begin
         if (reset) begin
-            // Clear all registers to zero
-            for (int i = 0; i < 16; i++) begin
-                register_storage[i] <= 32'b0;
-            end
+            for (int i = 0; i < 16; i++)
+                registers[i] <= 32'b0;
         end 
-        else if (write_enable) begin
-            // Store the write_data into the selected register
-            register_storage[write_address] <= write_data;
+        else begin
+            for (int i = 0; i < 16; i++)
+                if (write_select[i])
+                    registers[i] <= write_data;
         end
     end
 
-    // READ Logic (Combinational)
-    // This behaves like the 16-to-1 MUX, selecting a register to output.
-    assign read_data_1 = register_storage[read_address_1];
-    assign read_data_2 = register_storage[read_address_2];
+    // Read port 1: 32 mux16to1 instances, one per bit
+    genvar b;
+    generate
+        for (b = 0; b < 32; b++) begin : read1_mux
+            // Collect bit 'b' from all 16 registers into a 16-bit bus
+            logic [15:0] bit_bus_1;
+            assign bit_bus_1 = {
+                registers[15][b], registers[14][b], registers[13][b], registers[12][b],
+                registers[11][b], registers[10][b], registers[9][b],  registers[8][b],
+                registers[7][b],  registers[6][b],  registers[5][b],  registers[4][b],
+                registers[3][b],  registers[2][b],  registers[1][b],  registers[0][b]
+            };
+
+            mux16to1 mux1 (
+                .in (bit_bus_1),
+                .sel(read_address_1),
+                .out(read_data_1[b])
+            );
+        end
+    endgenerate
+
+    // Read port 2: 32 mux16to1 instances, one per bit
+    generate
+        for (b = 0; b < 32; b++) begin : read2_mux
+            logic [15:0] bit_bus_2;
+            assign bit_bus_2 = {
+                registers[15][b], registers[14][b], registers[13][b], registers[12][b],
+                registers[11][b], registers[10][b], registers[9][b],  registers[8][b],
+                registers[7][b],  registers[6][b],  registers[5][b],  registers[4][b],
+                registers[3][b],  registers[2][b],  registers[1][b],  registers[0][b]
+            };
+
+            mux16to1 mux2 (
+                .in (bit_bus_2),
+                .sel(read_address_2),
+                .out(read_data_2[b])
+            );
+        end
+    endgenerate
 
 endmodule
